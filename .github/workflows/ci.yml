@@ -37,14 +37,16 @@ jobs:
     - name: Set PowerShell Execution Policy (Bypass)
       shell: powershell
       run: |
-        # 현재 프로세스에 한해 보안 정책을 우회하여 스크립트 실행을 허용합니다.
         Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
 
     - name: Login to Docker Hub
       shell: powershell
       run: |
         Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
-        "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+        $pass = "${{ secrets.DOCKERHUB_PASSWORD }}"
+        $user = "${{ secrets.DOCKERHUB_USERNAME }}"
+        # 윈도우 PowerShell 파이프라인 최적화 방식으로 로그인 시도
+        $pass | docker login -u $user --password-stdin
 
     - name: Pull latest image and restart container
       shell: powershell
