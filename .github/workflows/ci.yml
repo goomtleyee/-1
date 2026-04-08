@@ -1,30 +1,22 @@
-name: CI/CD to Docker Hub
+name: CI/CD to Docker Hub & Local Deploy
 
-# main 브랜치에 코드가 push 되거나 PR이 생성되면 작동합니다.
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
     branches: [ "main" ]
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    
     steps:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-      with:
-        # 캐시된 레이어를 활용하기 위해 Buildx를 설정합니다. (빌드 속도 최적화)
-        buildkitd-flags: --debug
 
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
-        # GitHub Secrets에서 Docker Hub 자격 증명을 가져옵니다.
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
@@ -33,8 +25,39 @@ jobs:
       with:
         context: .
         push: true
-        # 이미지 이름 형식: <DockerHub 유저명>/<이미지명>
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/flower-classifier:latest
-        # Docker 빌드 레이어 캐싱 적용 (다음 빌드부터 시간을 획기적으로 단축)
         cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/flower-classifier:buildcache
         cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/flower-classifier:buildcache,mode=max
+
+  deploy:
+    # 빌드 및 푸시가 성공한 후에만 실행됩니다.
+    needs: build-and-push
+    # 사용자님이 설정하신 'Self-hosted' 로컬 컴퓨터에서 실행됩니다.
+    runs-on: self-hosted
+    
+    steps:
+    - name: Login to Docker Hub
+      shell: pwsh
+      run: |
+        docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_PASSWORD }}
+
+    - name: Pull latest image and restart container
+      shell: pwsh
+      run: |
+        # 1. 최신 이미지 가져오기
+        docker pull ${{ secrets.DOCKERHUB_USERNAME }}/flower-classifier:latest
+        
+        # 2. 기존 컨테이너가 있다면 중지 및 삭제 (PowerShell 대응)
+        $containerName = "ml_flower_server"
+        $exists = docker ps -a -q --filter "name=$containerName"
+        if ($exists) {
+            echo "Stopping and removing existing container: $containerName"
+            docker stop $containerName
+            docker rm $containerName
+        }
+        
+        # 3. 새 컨테이너 실행
+        docker run -d -p 8000:8000 --name $containerName ${{ secrets.DOCKERHUB_USERNAME }}/flower-classifier:latest
+        
+        # 4. 사용하지 않는 이미지 정리 (선택사항)
+        docker image prune -f
