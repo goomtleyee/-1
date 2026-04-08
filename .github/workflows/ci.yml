@@ -30,20 +30,18 @@ jobs:
         cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/flower-classifier:buildcache,mode=max
 
   deploy:
-    # 빌드 및 푸시가 성공한 후에만 실행됩니다.
     needs: build-and-push
-    # 사용자님이 설정하신 'Self-hosted' 로컬 컴퓨터에서 실행됩니다.
     runs-on: self-hosted
     
     steps:
     - name: Login to Docker Hub
-      shell: pwsh
+      shell: powershell
       run: |
-        # 보안 및 Windows 호환성을 위해 표준 입력을 통해 로그인합니다.
+        # pwsh 대신 모든 윈도우에 기본 설치된 powershell을 사용합니다.
         "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
     - name: Pull latest image and restart container
-      shell: pwsh
+      shell: powershell
       run: |
         $user = "${{ secrets.DOCKERHUB_USERNAME }}"
         $img = "$user/flower-classifier:latest"
