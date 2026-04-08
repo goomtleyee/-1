@@ -39,25 +39,28 @@ jobs:
     - name: Login to Docker Hub
       shell: pwsh
       run: |
-        docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_PASSWORD }}
+        # 보안 및 Windows 호환성을 위해 표준 입력을 통해 로그인합니다.
+        "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
     - name: Pull latest image and restart container
       shell: pwsh
       run: |
-        # 1. 최신 이미지 가져오기
-        docker pull ${{ secrets.DOCKERHUB_USERNAME }}/flower-classifier:latest
+        $user = "${{ secrets.DOCKERHUB_USERNAME }}"
+        $img = "$user/flower-classifier:latest"
+        $container = "ml_flower_server"
+
+        Write-Host "1. Pulling latest image: $img..."
+        docker pull $img
         
-        # 2. 기존 컨테이너가 있다면 중지 및 삭제 (PowerShell 대응)
-        $containerName = "ml_flower_server"
-        $exists = docker ps -a -q --filter "name=$containerName"
-        if ($exists) {
-            echo "Stopping and removing existing container: $containerName"
-            docker stop $containerName
-            docker rm $containerName
+        Write-Host "2. Checking for existing container: $container..."
+        $existing = docker ps -a -q --filter "name=$container"
+        if ($existing) {
+            Write-Host "Stopping and Removing existing container..."
+            docker stop $container
+            docker rm $container
         }
         
-        # 3. 새 컨테이너 실행
-        docker run -d -p 8000:8000 --name $containerName ${{ secrets.DOCKERHUB_USERNAME }}/flower-classifier:latest
+        Write-Host "3. Starting new container..."
+        docker run -d -p 8000:8000 --name $container $img
         
-        # 4. 사용하지 않는 이미지 정리 (선택사항)
-        docker image prune -f
+        Write-Host "✅ Deployment Completed Successfully!"
